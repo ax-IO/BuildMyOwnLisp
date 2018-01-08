@@ -11,15 +11,23 @@
     long num;
     char* err;
     char* sym;
-    int count
-    struct lval** cell
+    int count;
+    struct lval** cell;
   }lval;
 
 /* Déclare fonctions "lval" */
-  lval lval_num (long x);
-  lval lval_err (int x);
+  lval* lval_num (long x);
+  lval* lval_err (char* m);
+  lval* lval_sym (char* s);
+  lval* lval_sexpr (void);
+
+  lval* lval_read (mpc_ast_t* t);
+  lval* lval_read_num (mpc_ast_t* t);
+  lval* lval_add (lval* v, lval* x);
+
   void lval_print (lval v);
   void lval_println(lval v);
+  void lval_del(lval* v);
 
 /* Declare fonction "eval_op" et "eval" */
   lval eval(mpc_ast_t* t);
@@ -77,7 +85,7 @@ lval eval(mpc_ast_t* t) {
     /* Check if there is some error in conversion */
     errno = 0;
     long x = strtol(t->contents, NULL, 10);
-    return errno != ERANGE ? lval_num(x) : lval_err(LERR_BAD_NUM);
+    return errno != ERANGE ? lval_num(x) : lval_err("LERR_BAD_NUM");
   }
 
   char* op = t->children[1]->contents;
@@ -104,27 +112,42 @@ lval eval_op(lval x, char* op, lval y) {
   if (strcmp(op, "/") == 0) {
     /* If second operand is zero return error */
     return y.num == 0
-      ? lval_err(LERR_DIV_ZERO)
+      ? lval_err("LERR_DIV_ZERO")
       : lval_num(x.num / y.num);
   }
 
-  return lval_err(LERR_BAD_OP);
+  return lval_err("LERR_BAD_OP");
   }
 
 /* Déclare fonctions "lval" */
 lval* lval_num (long x){
     lval* v = malloc(sizeof(lval));
-    v.type = LVAL_NUM;
-    v.num = x;
+    v->type = LVAL_NUM;
+    v->num = x;
     return v;
   }
 
-lval lval_err (int x){
-    lval v;
-    v.type = LVAL_ERR;
-    v.err = x;
+lval* lval_err (char* m){
+    lval* v = malloc(sizeof(lval));
+    v->type = LVAL_ERR;
+    v->err = malloc(strlen(m) +1);
+    strcpy(v->err, m);
     return v;
   }
+lval* lval_sym (char* s){
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SYM;
+  v->sym = malloc(strlen (s) + 1);
+  strcpy(v->sym, s);
+  return v;
+}
+lval* lval_sexpr (void){
+  lval* v = malloc(sizeof(lval));
+  v->type = LVAL_SEXPR;
+  v->count = 0;
+  v->cell = NULL;
+  return v;
+}
   
   /* Print an "lval" */
 void lval_print (lval v){
@@ -145,3 +168,45 @@ void lval_println(lval v){
     lval_print(v);
     putchar('\n'); 
   }
+void lval_del(lval* v){
+  switch (v->type){
+    case LVAL_NUM: break;
+    case LVAL_ERR: free (v->err);break;
+    case LVAL_SYM: free (v->sym);break;
+    case LVAL_SEXPR: for (int i = 0; i < v->count ; i++){
+      lval_del(v->cell[i]);
+    }
+    free (v->cell);
+    break;
+  }
+  free(v);
+}
+
+/* READING EXPRESSIONS */
+lval* lval_read (mpc_ast_t* t){
+  if (strstr(t->tag, "number")){return lval_read_num(t);}
+  if (strstr(t->tag, "symbol")){return lval_sym(t->contents;}
+  lval* x = NULL;
+  if ((strcmp(t->tag, ">")) || (strstr(t->tag, "sexpr"))){x = lval_sexpr();}
+
+  for (int i = 0; i < t->children_num; i++){
+  if ((strcmp(t->children[i]->contents, ")") == 0) ||
+  ((strcmp(t->children[i]->contents, "(") == 0)) ||
+  ((strcmp(t->children[i]->tag, "regex") == 0))
+  ){continue;}
+  x = lval_add (x, lval_read(t->children[i]));
+}
+  return x;
+}
+lval* lval_read_num (mpc_ast_t* t){
+  errno = 0;
+  long x = strtol (t->contents, NULL, 10)
+  return errno != ERANGE ?
+  lval_num(x) : lval_err("Invalid number");
+}
+lval* lval_add (lval* v, lval* x){
+v->count++;
+v->cell= realloc(v->cell, sizeof (lval*) * v->count);
+v->cell[v->count - 1] = x;
+return v;
+}
