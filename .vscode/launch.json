@@ -1,28 +1,25 @@
 {
-    // Utilisez IntelliSense pour en savoir plus sur les attributs possibles.
-    // Pointez pour afficher la description des attributs existants.
-    // Pour plus d'informations, visitez : https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-{ 
-    "name": "(gdb) Attach",
-    "type": "cppdbg",
-    "request": "attach",
-    "program": "${workspaceRoot}/prompt.exe",
-    "processId": "${command:pickProcess}",
-    "MIMode": "gdb",
-    "miDebuggerPath": "C:\\mingw64\\bin\\gdb.exe"
-},
+        { 
+            "name": "(gdb) Attach",
+            "type": "cppdbg",
+            "request": "attach",
+            "program": "${workspaceFolder}/a.exe",
+            "processId": "${command:pickProcess}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "C:\\mingw64\\bin\\gdb.exe"
+        },
         {
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/prompt.exe",
+            "program": "${workspaceFolder}\\lispy.exe",
             "args": [],
-            "stopAtEntry": false,
+            "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false,
+            "externalConsole": true,
             "MIMode": "gdb",
             "miDebuggerPath": "C:\\mingw64\\bin\\gdb.exe",
             "setupCommands": [
@@ -30,9 +27,9 @@
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
-
                 }
             ]
         }
-    ]
+    ],
+    "compounds": []
 }
