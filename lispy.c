@@ -29,9 +29,11 @@
   void lval_println(lval* v);
   void lval_del(lval* v);
 
-/* Declare fonction "eval_op" et "eval" */
-/*   lval eval(mpc_ast_t* t);
-  lval eval_op(lval x, char* op, lval y); */
+  lval* lval_eval_sexpr (lval* v);
+  lval* lval_eval (lval* v);
+  lval* lval_pop (lval* v, int i);
+  lval* lval_take (lval* v, int i);
+  lval* builtin_op (lval* a, char* op);
 
 int main(int argc, char** argv) {
 /* Create Some Parsers */
@@ -67,7 +69,7 @@ mpca_lang(MPCA_LANG_DEFAULT,
     mpc_result_t r;
     if (mpc_parse("<stdin>", input, Lispy, &r)){
       /* read the input */
-      lval* x = lval_read(r.output);
+      lval* x = lval_eval(lval_read(r.output));
       lval_println(x);
       lval_del(x);
   }
@@ -77,48 +79,6 @@ mpca_lang(MPCA_LANG_DEFAULT,
   return 0;
 }
 
-
-/* Définition eval et eval_op*/
-// lval eval(mpc_ast_t* t) {
-
-//   if (strstr(t->tag, "number")) {
-//     /* Check if there is some error in conversion */
-//     errno = 0;
-//     long x = strtol(t->contents, NULL, 10);
-//     return (errno != ERANGE) ?
-//      lval_num(x) : lval_err("LERR_BAD_NUM");
-//   }
-
-//   char* op = t->children[1]->contents;
-//   lval x = eval(t->children[2]);
-
-//   int i = 3;
-//   while (strstr(t->children[i]->tag, "expr")) {
-//     x = eval_op(x, op, eval(t->children[i]));
-//     i++;
-//   }
-
-//   return x;
-//   }
-
-// lval eval_op(lval x, char* op, lval y) {
-//   /* If either value is an error return it */
-//   if (x.type == LVAL_ERR) { return x; }
-//   if (y.type == LVAL_ERR) { return y; }
-
-//   /* Otherwise do maths on the number values */
-//   if (strcmp(op, "+") == 0) { return lval_num(x.num + y.num); }
-//   if (strcmp(op, "-") == 0) { return lval_num(x.num - y.num); }
-//   if (strcmp(op, "*") == 0) { return lval_num(x.num * y.num); }
-//   if (strcmp(op, "/") == 0) {
-//     /* If second operand is zero return error */
-//     return y.num == 0
-//       ? lval_err("LERR_DIV_ZERO")
-//       : lval_num(x.num / y.num);
-//   }
-
-//   return lval_err("LERR_BAD_OP");
-//   }
 
 /* Déclare fonctions "lval" */
 lval* lval_num (long x){
@@ -216,4 +176,94 @@ v->count ++;
 v->cell= realloc(v->cell, sizeof (lval*) * v->count);
 v->cell[v->count - 1] = x;
 return v;
+}
+
+/* EVALUATE EXPRESSIONS */
+lval* lval_eval_sexpr (lval* v){
+  /* Evaluate Children */
+  for (int i = 0; i < v->count; i++){
+    v->cell[i] = lval_eval(v->cell[i]);
+  }
+  /* Error checking */
+  for (int i = 0; i < v->count; i++){
+    if (v->cell[i]->type == LVAL_ERR){return lval_take(v, i);}
+  }
+
+  /* Empty Expression */
+  if (v->count == 0){return v;}
+
+  /* Single expression */
+  if (v->count == 1){return lval_take(v, 0);}
+
+  /* We know we have a valid expression (number of child > 1) */
+  /* Ensure first element is symbol */
+  lval* f = lval_pop(v, 0);
+  if (f->type != LVAL_SYM){
+    lval_del(f);
+    lval_del(v);
+    return lval_err("S-expression Does not start with symbol!");
+  }
+
+  /* Call builtin calculator with operator */
+  lval* result = builtin_op(v, f->sym);
+  lval_del(f);
+  return result;
+}
+lval* lval_eval (lval* v){
+  /* Evaluate Sexpressions */
+  if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(v); }
+  /* All other lval types remain the same */
+  return v;
+}
+lval* lval_pop (lval* v, int i){
+  lval* x = v->cell[i];
+  memmove(&v->cell[i], &v->cell[i + 1], sizeof (lval*) * (v->count - i - 1));
+  v->count--;
+  v->cell = realloc(v->cell, sizeof(lval*) * v->count);
+  return x;
+}
+
+lval* lval_take (lval* v, int i){
+  lval* x = lval_pop(v, i);
+  lval_del (v);
+  return x;
+}
+
+lval* builtin_op (lval* a, char* op){
+  /* Ensure all arguments are numbers */
+  for (int i = 0; i< a->count; i++){
+    if (a->cell[i]->type != LVAL_NUM){
+      lval_del(a);
+      return lval_err("Cannot operate on non-numbers!");
+    }
+  }
+  /* Pop the first element (after the operator) */
+  lval* x = lval_pop(a, 0);
+  /* if no more arg or sub-exp
+  and op is negative
+  -> unary negation */
+  if ((strcmp(op, "-") == 0) && (a->count == 0)){
+    x->num = -x->num;
+  }
+  /* while there are still elements remaining */
+  while (a->count > 0){
+    /* pop the next element */
+    lval* y = lval_pop(a, 0);
+    /* perform operation according to the operator */
+    if (strcmp(op, "+") == 0){x->num += y->num; }
+    if (strcmp(op, "-") == 0){x->num -= y->num; }
+    if (strcmp(op, "*") == 0){x->num *= y->num; }
+    if (strcmp(op, "/") == 0){
+      /* if dividande == 0 -> delete args + error*/
+      if (y->num == 0){
+        lval_del(x);
+        lval_del(y);
+        x = lval_err("Division By Zero!");
+        break;
+      }
+    x->num /= y->num;
+    }
+  }
+  lval_del(a);
+  return x;
 }
