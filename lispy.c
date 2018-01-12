@@ -238,8 +238,8 @@ lval* lval_eval_sexpr (lval* v){
     return lval_err("S-expression Does not start with symbol!");
   }
 
-  /* Call builtin calculator with operator */
-  lval* result = builtin_op(v, f->sym);
+  /* Call builtin with operator */
+  lval* result = builtin(v, f->sym);
   lval_del(f);
   return result;
 }
@@ -354,6 +354,21 @@ lval* builtin_join(lval* a){
   lval_del(a);
   return x;
 }
-lval* lval_join(lval* x, lval* y){}
+lval* lval_join(lval* x, lval* y){
+  while (y->count){
+    x = lval_add(x, lval_pop(y, 0));
+  }
+  lval_del(y);
+  return x;
+}
 
-lval* builtin(lval* a, char* func){}
+lval* builtin(lval* a, char* func){
+  if (strcmp("list", func) == 0){ return builtin_list(a); }
+  if (strcmp("head", func) == 0){ return builtin_head(a); }
+  if (strcmp("tail", func) == 0){ return builtin_tail(a); }
+  if (strcmp("eval", func) == 0){ return builtin_eval(a); }
+  if (strcmp("join", func) == 0){ return builtin_join(a); }
+  if (strstr("+-/*", func))     { return builtin_op(a, func); }
+  lval_del(a);
+  return lval_err("Unknown Function!");
+}
