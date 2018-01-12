@@ -23,7 +23,7 @@
 
     /* Définition de la "fonction-pointeur" nommé lbuiltin
     takes lenv* and lval* et retourne lval* */
-      typedef lval*(*lbuiltin)(lenv*, lval*);
+    typedef lval*(*lbuiltin)(lenv*, lval*);
 
     struct lval {
       int type;
@@ -37,7 +37,11 @@
       lval** cell;
     };
 
-
+    struct lenv {
+      int count;
+      char** syms;
+      lval** vals;
+    }
 
   /* Déclaration fonctions */
     lval* lval_num (long x);
@@ -74,6 +78,12 @@
     lval* builtin(lval* a, char* func);
 
     lval* lval_fun (lbuiltin func);
+    lval* lval_copy(lval* v);
+
+    lenv* lenv_new (void);
+    void  lenv_del (lenv* e);
+    lval* lenv_get (lenv* e, lval* k);
+    void  lenv_put (lenv* e, lval* k, lval* v);
 
 //                                                //
 ////////////////////////////////////////////////////
@@ -319,6 +329,36 @@ int main(int argc, char** argv) {
     }
   /* -------------------- */
 
+  /* MANIPULATE LVAL */
+  lval* lval_copy(lval* v){
+    lval* x = malloc(sizeof(lval));
+    x->type = v->type;
+
+    switch (v->type){
+      /* Copy functions and numbers directly */
+      case LVAL_FUN: x->fun = v->fun; break;
+      case LVAL_NUM: x->num = v->num; break;
+
+      /* Copy strings usig malloc et strcpy */
+      case LVAL_ERR:
+        x->err = malloc(strlen(v->err) + 1);
+        strcpy(x->err, v->err); break;
+      case LVAL_SYM:
+        x->sym = malloc(strlen(v->sym) + 1);
+        strcpy(x->sym, v->sym); break;
+
+      /* Copy Lists by copying each sub-expression */
+      case LVAL_SEXPR:
+      case LVAL_QEXPR:
+        for (int i = 0; i < x-> count; i++){
+          x->cell[i] = lval_copy(v->cell[i]);
+          }
+        break;
+      }
+    return x;
+    }
+  /* -------------------- */
+
   /* Builtin Functions */
 
   lval* builtin(lval* a, char* func){
@@ -430,6 +470,56 @@ int main(int argc, char** argv) {
     lval_del(y);
     return x;
     }
+  /* -------------------- */
+
+  /* Définition lenv functons */
+  lenv* lenv_new (void){
+    lenv* e = malloc(sizeof(lenv));
+    e->count = 0;
+    e->syms = NULL;
+    e->vals = NULL;
+    return e;
+      }
+  void  lenv_del (lenv* e){
+    for (int i = 0; i < e->count; i++){
+        free (e->syms[i]);
+        lval_del(e->vals);
+      }
+      free (e->syms);
+      free (e->vals);
+      free (e);
+    }
+  lval* lenv_get (lenv* e, lval* k){
+    for (int i = 0; i < e->count; i++){
+      if (strcmp(e->syms[i], k->sym) == 0){
+        return lval_copy(e->vals[i]);
+        }
+      }
+      return lval_err ("Unbound symbol!");
+    }
+  void  lenv_put (lenv* e, lval* k, lval* v){
+  /* Iterate over all items in environment */
+  /* This is to see if variable already exists */
+  for (int i = 0; i < e->count; i++){
+    /* If variable is found delete item at that position */
+    /* And replace with variable supplied by user */
+    if (strcmp(e->syms[i], k->sym ) == 0){
+      lval_del(e->vals[i]);
+      e->vals[i] = lval_copy (v) ;
+      return;
+      }
+    }
+
+  /* If no existing entry found allocate space for new entry */
+  e->count++;
+  e->vals = realloc(e->vals ,sizeof(lval*) * e->count);
+  e->syms = realloc(e->syms ,sizeof(char*) * e->count);
+
+  /* Copy contents of lval and symbol string into new location */
+  e->vals[e->count -1] = lval_copy(v);
+  e->syms[e->count -1] = malloc(strlen(k->sym) + 1);
+  strcpy(e->syms[e->count -1], k->sym);
+  }
   /* -------------------- */
 //                                             //
 /////////////////////////////////////////////////
