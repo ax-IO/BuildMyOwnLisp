@@ -40,6 +40,16 @@
 
   lval* lval_qexpr (void);
 
+  lval* builtin_head (lval* a);
+  lval* builtin_tail (lval* a);
+
+  lval* builtin_list (lval* a);
+  lval* builtin_eval(lval* a);
+
+  lval* builtin_join(lval* a);
+  lval* lval_join(lval* x, lval* y);
+
+  lval* builtin(lval* a, char* func);
 
 int main(int argc, char** argv) {
 /* Create Some Parsers */
@@ -315,3 +325,35 @@ lval* builtin_tail (lval* a){
   lval_del(lval_pop(v, 0));
   return v;
 }
+
+lval* builtin_list (lval* a){
+  a->type = LVAL_QEXPR;
+  return a;
+}
+
+lval* builtin_eval(lval* a){
+  LASSERT(a, a->count == 1, "Function 'eval' passed too many arguments!");
+  LASSERT(a, a->cell[0]->type == LVAL_QEXPR, "Function 'eval' passed incorrect type!");
+
+  lval* x = lval_take(a, 0);
+  x->type = LVAL_SEXPR;
+  return lval_eval(x);
+  }
+
+lval* builtin_join(lval* a){
+  for (int i = 0; i < a->count; i++){
+    LASSERT(a, a->cell[i]->type == LVAL_QEXPR, "Function 'join' passed incorrect type");
+  }
+
+  lval* x = lval_pop(a, 0);
+
+  while (a->count){
+    x = lval_join(x, lval_pop(a, 0));
+  }
+
+  lval_del(a);
+  return x;
+}
+lval* lval_join(lval* x, lval* y){}
+
+lval* builtin(lval* a, char* func){}
