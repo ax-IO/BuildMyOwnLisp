@@ -41,7 +41,7 @@
       int count;
       char** syms;
       lval** vals;
-    }
+    };
 
   /* Déclaration fonctions */
     lval* lval_num (long x);
@@ -275,7 +275,7 @@ int main(int argc, char** argv) {
   /* -------------------- */
 
   /* EVALUATE EXPRESSIONS */
-  lval* lval_eval_sexpr (lval* v){
+  lval* lval_eval_sexpr (lenv* e, lval* v){
     /* Evaluate Children */
     for (int i = 0; i < v->count; i++){
       v->cell[i] = lval_eval(v->cell[i]);
@@ -292,22 +292,29 @@ int main(int argc, char** argv) {
     if (v->count == 1){return lval_take(v, 0);}
 
     /* We know we have a valid expression (number of child > 1) */
-    /* Ensure first element is symbol */
-    lval* f = lval_pop(v, 0);
-    if (f->type != LVAL_SYM){
-      lval_del(f);
-      lval_del(v);
-      return lval_err("S-expression Does not start with symbol!");
-    }
 
-    /* Call builtin with operator */
-    lval* result = builtin(v, f->sym);
+    /* Ensure first element is a function after evaluatiion */
+    lval* f = lval_pop(v, 0);
+    if (f->type != LVAL_FUN){
+      lval_del(v);
+      lval_del(f);
+      return lval_err("First element is not a function!");
+    }
+    /* If so call function to get result */
+    lval* result = f->fun(e, v);
     lval_del(f);
     return result;
     }
-  lval* lval_eval (lval* v){
+
+    /* Variable Evaluation functions */
+  lval* lval_eval (lenv* e, lval* v){
+    if (v->type == LVAL_SYM){
+        lval* x = lenv_get(e, v);
+        lval_del(v);
+        return x;
+      }
     /* Evaluate Sexpressions */
-    if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(v); }
+    if (v->type == LVAL_SEXPR) { return lval_eval_sexpr(e, v);}
     /* All other lval types remain the same */
     return v;
     }
@@ -498,28 +505,32 @@ int main(int argc, char** argv) {
       return lval_err ("Unbound symbol!");
     }
   void  lenv_put (lenv* e, lval* k, lval* v){
-  /* Iterate over all items in environment */
-  /* This is to see if variable already exists */
-  for (int i = 0; i < e->count; i++){
-    /* If variable is found delete item at that position */
-    /* And replace with variable supplied by user */
-    if (strcmp(e->syms[i], k->sym ) == 0){
-      lval_del(e->vals[i]);
-      e->vals[i] = lval_copy (v) ;
-      return;
+    /* Iterate over all items in environment */
+    /* This is to see if variable already exists */
+    for (int i = 0; i < e->count; i++){
+      /* If variable is found delete item at that position */
+      /* And replace with variable supplied by user */
+      if (strcmp(e->syms[i], k->sym ) == 0){
+        lval_del(e->vals[i]);
+        e->vals[i] = lval_copy (v) ;
+        return;
+        }
       }
+
+    /* If no existing entry found allocate space for new entry */
+    e->count++;
+    e->vals = realloc(e->vals ,sizeof(lval*) * e->count);
+    e->syms = realloc(e->syms ,sizeof(char*) * e->count);
+
+    /* Copy contents of lval and symbol string into new location */
+    e->vals[e->count -1] = lval_copy(v);
+    e->syms[e->count -1] = malloc(strlen(k->sym) + 1);
+    strcpy(e->syms[e->count -1], k->sym);
     }
-
-  /* If no existing entry found allocate space for new entry */
-  e->count++;
-  e->vals = realloc(e->vals ,sizeof(lval*) * e->count);
-  e->syms = realloc(e->syms ,sizeof(char*) * e->count);
-
-  /* Copy contents of lval and symbol string into new location */
-  e->vals[e->count -1] = lval_copy(v);
-  e->syms[e->count -1] = malloc(strlen(k->sym) + 1);
-  strcpy(e->syms[e->count -1], k->sym);
-  }
   /* -------------------- */
+
+
+
+
 //                                             //
 /////////////////////////////////////////////////
