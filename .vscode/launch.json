@@ -16,7 +16,7 @@
             "request": "launch",
             "program": "${workspaceFolder}\\lispy.exe",
             "args": [],
-            "stopAtEntry": true,
+            "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": true,
